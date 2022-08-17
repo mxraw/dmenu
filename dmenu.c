@@ -15,6 +15,7 @@
 #include <X11/extensions/Xinerama.h>
 #endif
 #include <X11/Xft/Xft.h>
+#include <X11/Xresource.h>
 
 #include "drw.h"
 #include "util.h"
@@ -870,11 +871,56 @@ usage(void)
 	exit(1);
 }
 
+static void
+setresources(Display *dpy, const char* cli_fonts[], const char* cli_colors[SchemeLast][2])
+{
+	char* res = NULL;
+	char *type = NULL;
+	XrmValue xval;
+	XrmDatabase xdb = NULL;
+
+	XrmInitialize();
+
+	res = XResourceManagerString(dpy);
+	if (res)
+		xdb = XrmGetStringDatabase(res);
+
+	if (cli_fonts[0])
+		fonts[0] = strdup(cli_fonts[0]);
+	else if (xdb && XrmGetResource(xdb, "dmenu.font", "*", &type, &xval))
+		fonts[0] = strdup(xval.addr);
+
+	if (cli_colors[SchemeNorm][ColBg])
+		colors[SchemeNorm][ColBg] = strdup(cli_colors[SchemeNorm][ColBg]);
+	else if (xdb && XrmGetResource(xdb, "dmenu.background", "*", &type, &xval))
+		colors[SchemeNorm][ColBg] = strdup(xval.addr);
+
+	if (cli_colors[SchemeNorm][ColFg])
+		colors[SchemeNorm][ColFg] = strdup(cli_colors[SchemeNorm][ColFg]);
+	else if (xdb && XrmGetResource(xdb, "dmenu.foreground", "*", &type, &xval))
+		colors[SchemeNorm][ColFg] = strdup(xval.addr);
+
+	if (cli_colors[SchemeSel][ColBg])
+		colors[SchemeSel][ColBg] = strdup(cli_colors[SchemeSel][ColBg]);
+	else if (xdb && XrmGetResource(xdb, "dmenu.selbackground", "*", &type, &xval))
+		colors[SchemeSel][ColBg] = strdup(xval.addr);
+
+	if (cli_colors[SchemeSel][ColFg])
+		colors[SchemeSel][ColFg] = strdup(cli_colors[SchemeSel][ColFg]);
+	else if (xdb && XrmGetResource(xdb, "dmenu.selforeground", "*", &type, &xval))
+		colors[SchemeSel][ColFg] = strdup(xval.addr);
+
+	if (xdb)
+		XrmDestroyDatabase(xdb);
+}
+
 int
 main(int argc, char *argv[])
 {
 	XWindowAttributes wa;
 	int i, fast = 0;
+	const char* cli_fonts[] = { 0 };
+	const char* cli_colors[SchemeLast][2] = { 0 };
 
 	for (i = 1; i < argc; i++)
 		/* these options take no arguments */
@@ -903,15 +949,15 @@ main(int argc, char *argv[])
 		else if (!strcmp(argv[i], "-p"))   /* adds prompt to left of input field */
 			prompt = argv[++i];
 		else if (!strcmp(argv[i], "-fn"))  /* font or font set */
-			fonts[0] = argv[++i];
+			cli_fonts[0] = argv[++i];
 		else if (!strcmp(argv[i], "-nb"))  /* normal background color */
-			colors[SchemeNorm][ColBg] = argv[++i];
+			cli_colors[SchemeNorm][ColBg] = argv[++i];
 		else if (!strcmp(argv[i], "-nf"))  /* normal foreground color */
-			colors[SchemeNorm][ColFg] = argv[++i];
+			cli_colors[SchemeNorm][ColFg] = argv[++i];
 		else if (!strcmp(argv[i], "-sb"))  /* selected background color */
-			colors[SchemeSel][ColBg] = argv[++i];
+			cli_colors[SchemeSel][ColBg] = argv[++i];
 		else if (!strcmp(argv[i], "-sf"))  /* selected foreground color */
-			colors[SchemeSel][ColFg] = argv[++i];
+			cli_colors[SchemeSel][ColFg] = argv[++i];
 		else if (!strcmp(argv[i], "-w"))   /* embedding window id */
 			embed = argv[++i];
 		else
@@ -930,6 +976,7 @@ main(int argc, char *argv[])
 		    parentwin);
 	xinitvisual();
 	drw = drw_create(dpy, screen, root, wa.width, wa.height, visual, depth, cmap);
+	setresources(drw->dpy, cli_fonts, cli_colors);
 	if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
 		die("no fonts could be loaded.");
 	lrpad = drw->fonts->h;
